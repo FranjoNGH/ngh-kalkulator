@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalkulator troška šleperskog prijevoza – NGH Beton</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#1a3a5c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NGH Kalkulator">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #222; min-height: 100vh; padding: 28px 16px 48px; }
+header { max-width: 980px; margin: 0 auto 24px; }
+header h1 { font-size: 1.35rem; font-weight: 700; color: #1a3a5c; }
+header p  { font-size: 0.82rem; color: #666; margin-top: 4px; }
+
+.layout { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .layout { grid-template-columns: 1fr; } }
+
+.card { background: #fff; border-radius: 10px; padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.card h2 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #1a3a5c; margin-bottom: 14px; border-bottom: 2px solid #e8edf3; padding-bottom: 8px; }
+.field { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; gap: 10px; }
+.field label { font-size: 0.80rem; color: #444; flex: 1; line-height: 1.3; }
+.field-unit { display: flex; align-items: center; gap: 6px; }
+
+input[type="number"] { width: 92px; padding: 5px 8px; border: 1px solid #d0d7df; border-radius: 6px; font-size: 0.86rem; text-align: right; color: #1a3a5c; font-weight: 600; background: #f8fafc; transition: border-color .15s; }
+input[type="number"]:focus { outline: none; border-color: #2e6cb8; background: #fff; }
+input[type="number"].invalid { border-color: #d04030; background: #fff3f0; }
+.unit { font-size: 0.72rem; color: #888; min-width: 50px; }
+
+/* ── Results ── */
+.results-card { grid-column: 1/-1; background: #1a3a5c; color: #fff; border-radius: 10px; padding: 22px 24px; box-shadow: 0 2px 8px rgba(26,58,92,.25); }
+.results-card h2 { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #a8c4e0; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.15); padding-bottom: 8px; }
+.kpi-row { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+.kpi { background: rgba(255,255,255,.08); border-radius: 8px; padding: 14px 20px; flex: 1; min-width: 140px; text-align: center; }
+.kpi .val { font-size: 1.7rem; font-weight: 800; color: #f0c040; line-height: 1.1; }
+.kpi .lbl { font-size: 0.72rem; color: #a8c4e0; margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+.breakdown { margin-bottom: 20px; }
+.breakdown h3 { font-size: .72rem; text-transform: uppercase; letter-spacing: .6px; color: #a8c4e0; margin-bottom: 10px; }
+.bar-row { display: flex; align-items: center; margin-bottom: 7px; gap: 8px; }
+.bar-label { font-size: .78rem; color: #dce8f5; min-width: 115px; }
+.bar-track { flex: 1; background: rgba(255,255,255,.1); border-radius: 4px; height: 10px; overflow: hidden; }
+.bar-fill  { height: 100%; border-radius: 4px; transition: width .3s; }
+.bar-val   { font-size: .76rem; color: #f0c040; font-weight: 700; min-width: 68px; text-align: right; }
+.dist-table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .80rem; }
+thead tr th { background: rgba(255,255,255,.1); color: #a8c4e0; font-weight: 600; padding: 7px 10px; text-align: right; font-size: .72rem; text-transform: uppercase; letter-spacing: .4px; }
+thead tr th:first-child { text-align: left; }
+tbody tr td { padding: 6px 10px; text-align: right; color: #dce8f5; border-bottom: 1px solid rgba(255,255,255,.06); }
+tbody tr td:first-child { text-align: left; color: #fff; font-weight: 600; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(255,255,255,.05); }
+.note { font-size: .72rem; color: #7a9ec0; margin-top: 12px; line-height: 1.5; }
+.warn { font-size: .74rem; color: #f0c040; margin-top: 10px; line-height: 1.5; font-weight: 600; }
+.tag-estimate { display: inline-block; background: rgba(240,192,64,.18); color: #f0c040; font-size: .65rem; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle; font-weight: 600; }
+
+/* ── Route card ── */
+.route-card { grid-column: 1/-1; background: #fff; border-radius: 10px; padding: 20px 22px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.route-card h2 { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: #1a3a5c; margin-bottom: 12px; border-bottom: 2px solid #e8edf3; padding-bottom: 8px; }
+
+.origin-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.route-origin-badge { display: inline-flex; align-items: center; background: #eaf3ff; border: 1px solid #b8d4f0; color: #1a3a5c; font-size: .80rem; padding: 5px 12px; border-radius: 20px; gap: 6px; }
+.origin-edit-btn { background: none; border: 1px solid #c8d8ea; border-radius: 6px; padding: 4px 10px; font-size: .75rem; color: #2e6cb8; cursor: pointer; transition: background .15s; }
+.origin-edit-btn:hover { background: #eaf3ff; }
+.origin-custom-wrap { margin-bottom: 14px; }
+
+.route-inputs { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.route-field  { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 200px; position: relative; }
+.route-field label { font-size: .78rem; color: #555; font-weight: 600; }
+
+select, input[type="text"] { width: 100%; padding: 8px 12px; border: 1px solid #d0d7df; border-radius: 6px; font-size: .86rem; color: #1a3a5c; background: #f8fafc; transition: border-color .15s; }
+select { cursor: pointer; }
+select:focus, input[type="text"]:focus { outline: none; border-color: #2e6cb8; background: #fff; }
+
+.route-btn { padding: 8px 20px; background: #1a3a5c; color: #fff; border: none; border-radius: 6px; font-size: .85rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background .15s; align-self: flex-end; height: 36px; }
+.route-btn:hover    { background: #2e6cb8; }
+.route-btn:disabled { background: #aaa; cursor: not-allowed; }
+.route-btn.secondary { background: #6b8f3a; }
+.route-btn.secondary:hover { background: #5a7d2e; }
+.print-btn { background: #2e6cb8; color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-size: .78rem; font-weight: 600; cursor: pointer; margin-top: 10px; }
+
+.or-divider { text-align: center; font-size: .72rem; color: #aaa; margin: 6px 0; position: relative; }
+.or-divider::before, .or-divider::after { content:''; position: absolute; top: 50%; width: 36%; height: 1px; background: #e8e8e8; }
+.or-divider::before { left: 0; } .or-divider::after { right: 0; }
+
+.opts-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+.opt-field { display: flex; flex-direction: column; gap: 4px; }
+.opt-field label { font-size: .74rem; color: #555; font-weight: 600; }
+.opt-check { display: flex; align-items: center; gap: 7px; font-size: .82rem; color: #1a3a5c; font-weight: 600; cursor: pointer; user-select: none; }
+.opt-check input { width: 16px; height: 16px; accent-color: #2e6cb8; cursor: pointer; }
+
+.return-toggle-row { margin-top: 16px; padding-top: 14px; border-top: 1px dashed #dde3ea; display: flex; align-items: center; gap: 10px; }
+.return-toggle-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: .84rem; color: #1a3a5c; font-weight: 600; user-select: none; }
+.return-toggle-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #2e6cb8; }
+.return-fields { margin-top: 14px; padding: 14px 16px; background: #f5f8ff; border: 1px solid #c8d8f0; border-radius: 8px; }
+.return-fields-header { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: #2e6cb8; margin-bottom: 12px; }
+
+.route-result { margin-top: 14px; padding: 14px 16px; border-radius: 8px; display: none; }
+.route-result.success { display: block; background: #eaf3ff; border: 1px solid #b8d4f0; }
+.route-result.error   { display: block; background: #fff3f0; border: 1px solid #f0b8b8; color: #b03020; font-size: .82rem; }
+.route-result.loading { display: block; background: #f5f7fa; border: 1px solid #dde3ea; color: #666; font-size: .82rem; }
+
+.estimate-banner { background: #fff7e6; border: 1px solid #f0c040; color: #8a6d1a; font-size: .78rem; font-weight: 600; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; }
+
+.route-kpi-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.route-kpi { background: #1a3a5c; border-radius: 7px; padding: 10px 14px; text-align: center; flex: 1; min-width: 100px; }
+.route-kpi.sell { background: #2c5b2c; }
+.route-kpi .val { font-size: 1.2rem; font-weight: 800; color: #f0c040; }
+.route-kpi .lbl { font-size: .65rem; color: #a8c4e0; text-transform: uppercase; letter-spacing: .4px; margin-top: 3px; }
+.route-kpi.sell .lbl { color: #bfe0bf; }
+.route-meta { font-size: .73rem; color: #556; margin-top: 10px; }
+
+.leg-section-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: #2e6cb8; margin: 12px 0 6px; }
+.leg-row { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-size: .80rem; color: #334; flex-wrap: wrap; }
+.leg-badge { color: #fff; font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 10px; white-space: nowrap; }
+.leg-badge.go     { background: #2e6cb8; }
+.leg-badge.empty  { background: #94a3b8; }
+.leg-badge.return { background: #6b8f3a; }
+.leg-dist { font-weight: 700; color: #1a3a5c; }
+
+.compare-result { margin-top: 14px; }
+.compare-result table { color: #1a3a5c; }
+.compare-result thead th { background: #1a3a5c; color: #fff; }
+.compare-result tbody td { color: #334; border-bottom: 1px solid #e8edf3; }
+.compare-result tbody tr.best td { background: #eafaea; font-weight: 700; }
+
+.history-card { grid-column: 1/-1; }
+.history-card table { color: #1a3a5c; }
+.history-card thead th { background: #eef2f7; color: #1a3a5c; }
+.history-card tbody td { color: #334; border-bottom: 1px solid #eef2f7; }
+
+/* Autocomplete */
+.ac-dropdown { position: absolute; top: 100%; left: 0; right: 0; z-index: 1000; background: #fff; border: 1px solid #b8d4f0; border-top: none; border-radius: 0 0 8px 8px; box-shadow: 0 4px 12px rgba(0,0,0,.12); max-height: 200px; overflow-y: auto; display: none; }
+.ac-item { padding: 8px 12px; font-size: .82rem; color: #1a3a5c; cursor: pointer; border-bottom: 1px solid #eef2f7; line-height: 1.3; }
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover, .ac-item.active { background: #eaf3ff; }
+.ac-item .ac-main { font-weight: 600; }
+.ac-item .ac-sub  { font-size: .72rem; color: #778; }
+
+/* Map */
+.map-card { grid-column: 1/-1; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); display: none; }
+.map-card.visible { display: block; }
+#routeMap { height: 400px; width: 100%; }
+
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ccc; border-top-color: #2e6cb8; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media print {
+  body { background: #fff; padding: 0; }
+  .route-btn, .origin-edit-btn, .print-btn, .ac-dropdown, .return-toggle-row,
+  .opts-row, .origin-row, .origin-custom-wrap, .route-inputs, .return-fields,
+  .card, .map-card .leaflet-control-container { display: none !important; }
+  .results-card, .route-result, .history-card { box-shadow: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Kalkulator troška šleperskog prijevoza</h1>
+  <p>NGH Beton d.o.o. &mdash; kamionsko rutiranje (ORS HGV), trošak, marža i prodajna cijena</p>
+</header>
+
+<div class="layout">
+
+<!-- ── KALKULATOR RUTE ── -->
+<div class="route-card">
+  <h2>&#128205; Izračun troška ture po ruti</h2>
+
+  <!-- Polazišna točka -->
+  <div class="origin-row">
+    <div class="route-origin-badge" id="originBadge">
+      &#127968; Polazišna točka: <strong id="originLabel">Betonara Mokrice</strong>
+    </div>
+    <button class="origin-edit-btn" id="originEditBtn" onclick="toggleCustomOrigin()">&#9998; Promijeni</button>
+  </div>
+  <div class="origin-custom-wrap" id="customOriginWrap" style="display:none">
+    <div class="route-field" style="max-width:420px">
+      <label>Prilagođeno polazište</label>
+      <input type="text" id="locOrigin" placeholder="Upiši adresu polazišta…" autocomplete="off">
+      <div class="ac-dropdown" id="acDropdownOrigin"></div>
+    </div>
+    <button class="origin-edit-btn" style="margin-top:6px" onclick="resetOrigin()">&#10006; Vrati na Betonaru Mokrice</button>
+  </div>
+
+  <!-- Utovar + Istovar -->
+  <div class="route-inputs">
+    <div class="route-field">
+      <label>Kamenolom / sljunčara (utovar)</label>
+      <select id="locQuarry"></select>
+      <div class="or-divider">ili upiši adresu</div>
+      <div style="position:relative">
+        <input type="text" id="locFrom" placeholder="Upiši adresu utovara…" autocomplete="off">
+        <div class="ac-dropdown" id="acDropdownFrom"></div>
+      </div>
+    </div>
+
+    <div class="route-field" id="toFieldWrap">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+        <span style="font-size:.78rem;color:#555;font-weight:600">Lokacija istovara</span>
+        <label style="display:flex;align-items:center;gap:5px;font-size:.75rem;color:#2e6cb8;font-weight:500;cursor:pointer">
+          <input type="checkbox" id="istovarBetonara" style="width:13px;height:13px;accent-color:#2e6cb8;cursor:pointer" onchange="toggleIstovarBetonara(this)">
+          Betonara Mokrice
+        </label>
+      </div>
+      <select id="locDestFreq" style="margin-bottom:6px;display:none"></select>
+      <input type="text" id="locTo" placeholder="Upiši adresu ili grad…" autocomplete="off">
+      <div class="ac-dropdown" id="acDropdown"></div>
+    </div>
+
+    <button class="route-btn" id="calcRouteBtn" onclick="calcRoute()">Izračunaj rutu</button>
+  </div>
+
+  <!-- Opcije: cestarina + povratak na bazu + usporedba -->
+  <div class="opts-row">
+    <div class="opt-field">
+      <label>Cestarina za rutu (EUR)</label>
+      <input type="number" id="tollAmount" value="0" step="1" min="0">
+    </div>
+    <label class="opt-check"><input type="checkbox" id="deadheadCheck"> Uračunaj povratak na bazu (prazan)</label>
+    <button class="route-btn secondary" id="compareBtn" onclick="compareQuarries()">&#128202; Usporedi lokacije utovara</button>
+  </div>
+
+  <!-- Povratna tura toggle -->
+  <div class="return-toggle-row">
+    <label class="return-toggle-label">
+      <input type="checkbox" id="returnTripCheck" onchange="toggleReturnTrip()">
+      &#8617;&#65039; Dodaj povratnu turu
+    </label>
+  </div>
+
+  <!-- Povratna tura polja -->
+  <div class="return-fields" id="returnTripFields" style="display:none">
+    <div class="return-fields-header">&#8617;&#65039; Povratna tura — utovar i istovar na povratku</div>
+    <div class="route-inputs">
+      <div class="route-field">
+        <label>Utovar povratka</label>
+        <select id="locQuarry2"></select>
+        <div class="or-divider">ili upiši adresu</div>
+        <div style="position:relative">
+          <input type="text" id="locFrom2" placeholder="Upiši adresu utovara…" autocomplete="off">
+          <div class="ac-dropdown" id="acDropdownFrom2"></div>
+        </div>
+      </div>
+      <div class="route-field">
+        <label>Istovar povratka</label>
+        <input type="text" id="locTo2" placeholder="Upiši adresu ili grad…" value="Betonara Mokrice" autocomplete="off">
+        <div class="ac-dropdown" id="acDropdown2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="route-result" id="routeResult"></div>
+  <div class="compare-result" id="compareResult"></div>
+</div>
+
+<!-- ── MAPA ── -->
+<div class="map-card" id="mapCard">
+  <div id="routeMap"></div>
+</div>
+
+<!-- ── GORIVO ── -->
+<div class="card">
+  <h2>Gorivo</h2>
+  <div class="field">
+    <label>Cijena goriva (neto, bez PDV-a)</label>
+    <div class="field-unit"><input type="number" id="fuelPrice" value="1.24" step="0.001" min="0"><span class="unit">EUR/l</span></div>
+  </div>
+  <div id="fuelAutoNote" style="font-size:.7rem;color:#2e6cb8;margin-top:-4px;line-height:1.4"></div>
+  <div class="field">
+    <label>Potrošnja (prazno)</label>
+    <div class="field-unit"><input type="number" id="fuelConsEmpty" value="35" step="1" min="0"><span class="unit">l/100 km</span></div>
+  </div>
+  <div class="field">
+    <label>Potrošnja (natovareno)</label>
+    <div class="field-unit"><input type="number" id="fuelConsLoaded" value="45" step="1" min="0"><span class="unit">l/100 km</span></div>
+  </div>
+</div>
+
+<!-- ── GUME ── -->
+<div class="card">
+  <h2>Gume</h2>
+  <div class="field">
+    <label>Cijena po gumi (neto)</label>
+    <div class="field-unit"><input type="number" id="tireCost" value="300" step="10" min="0"><span class="unit">EUR/kom</span></div>
+  </div>
+  <div class="field">
+    <label>Broj guma (tegljač + prikolica)</label>
+    <div class="field-unit"><input type="number" id="tireCount" value="18" step="1" min="0"><span class="unit">kom</span></div>
+  </div>
+  <div class="field">
+    <label>Vijek trajanja po gumi</label>
+    <div class="field-unit"><input type="number" id="tireLife" value="60000" step="5000" min="0"><span class="unit">km</span></div>
+  </div>
+</div>
+
+<!-- ── AMORTIZACIJA ── -->
+<div class="card">
+  <h2>Vozilo &amp; amortizacija</h2>
+  <div class="field">
+    <label>Nabavna cijena (tegljač + prikolica)</label>
+    <div class="field-unit"><input type="number" id="vehicleValue" value="60000" step="1000" min="0"><span class="unit">EUR</span></div>
+  </div>
+  <div class="field">
+    <label>Amortizacijski period</label>
+    <div class="field-unit"><input type="number" id="deprYears" value="5" step="1" min="1"><span class="unit">god.</span></div>
+  </div>
+  <div class="field">
+    <label>Godišnja kilometraža</label>
+    <div class="field-unit"><input type="number" id="annualKm" value="150000" step="5000" min="1"><span class="unit">km/god</span></div>
+  </div>
+</div>
+
+<!-- ── VOZAČ & OSTALO ── -->
+<div class="card">
+  <h2>Vozač &amp; ostalo</h2>
+  <div class="field">
+    <label>Trošak vozača</label>
+    <div class="field-unit"><input type="number" id="driverRate" value="11" step="0.5" min="0"><span class="unit">EUR/h</span></div>
+  </div>
+  <div class="field">
+    <label>Prosj. brzina (za procjenu/EUR-km)</label>
+    <div class="field-unit"><input type="number" id="avgSpeed" value="50" step="5" min="1"><span class="unit">km/h</span></div>
+  </div>
+  <div class="field">
+    <label>Vrijeme utovara</label>
+    <div class="field-unit"><input type="number" id="manipUtovar" value="20" step="5" min="0"><span class="unit">min</span></div>
+  </div>
+  <div class="field">
+    <label>Vrijeme istovara</label>
+    <div class="field-unit"><input type="number" id="manipIstovar" value="20" step="5" min="0"><span class="unit">min</span></div>
+  </div>
+  <div class="field">
+    <label>Nosivost po turi</label>
+    <div class="field-unit"><input type="number" id="payload" value="28" step="1" min="1"><span class="unit">t</span></div>
+  </div>
+</div>
+
+<!-- ── OSIGURANJE / SERVIS ── -->
+<div class="card">
+  <h2>Fiksni godišnji troškovi</h2>
+  <div class="field">
+    <label>Osiguranje <span class="tag-estimate">procjena</span></label>
+    <div class="field-unit"><input type="number" id="insurance" value="5300" step="100" min="0"><span class="unit">EUR/god</span></div>
+  </div>
+  <div class="field">
+    <label>Servisiranje / održavanje <span class="tag-estimate">procjena</span></label>
+    <div class="field-unit"><input type="number" id="maintenance" value="10500" step="500" min="0"><span class="unit">EUR/god</span></div>
+  </div>
+</div>
+
+<!-- ── PROFIL VOZILA & MARŽA ── -->
+<div class="card">
+  <h2>Kamionski profil &amp; marža</h2>
+  <div class="field">
+    <label>Profil vozila</label>
+    <div class="field-unit"><select id="vehicleProfile" style="width:auto;min-width:120px"></select></div>
+  </div>
+  <div class="field">
+    <label>Visina</label>
+    <div class="field-unit"><input type="number" id="truckHeight" value="4.0" step="0.1" min="0"><span class="unit">m</span></div>
+  </div>
+  <div class="field">
+    <label>Ukupna masa</label>
+    <div class="field-unit"><input type="number" id="truckWeight" value="40" step="1" min="0"><span class="unit">t</span></div>
+  </div>
+  <div class="field">
+    <label>Duljina</label>
+    <div class="field-unit"><input type="number" id="truckLength" value="16.5" step="0.5" min="0"><span class="unit">m</span></div>
+  </div>
+  <div class="field">
+    <label>Os. opterećenje</label>
+    <div class="field-unit"><input type="number" id="truckAxle" value="11.5" step="0.5" min="0"><span class="unit">t</span></div>
+  </div>
+  <div class="field">
+    <label>Marža</label>
+    <div class="field-unit"><input type="number" id="marginPct" value="15" step="1" min="0"><span class="unit">%</span></div>
+  </div>
+  <div class="field">
+    <label>Ciljana cijena/t <span class="tag-estimate">opcionalno</span></label>
+    <div class="field-unit"><input type="number" id="targetPricePerT" value="" step="0.5" min="0" placeholder="—"><span class="unit">EUR/t</span></div>
+  </div>
+</div>
+
+<!-- ── REZULTATI ── -->
+<div class="results-card">
+  <h2>Rezultati izračuna (opći trošak po km)</h2>
+  <div class="kpi-row">
+    <div class="kpi"><div class="val" id="res_per_km">–</div><div class="lbl">EUR / km (prosj.)</div></div>
+    <div class="kpi"><div class="val" id="res_per_tkm">–</div><div class="lbl">EUR / t·km</div></div>
+    <div class="kpi"><div class="val" id="res_annual">–</div><div class="lbl">EUR / godišnje</div></div>
+  </div>
+  <div class="breakdown">
+    <h3>Struktura troška po km</h3>
+    <div id="breakdownBars"></div>
+  </div>
+  <div class="dist-table-wrap">
+    <table id="distTable">
+      <thead><tr><th>Udaljenost</th><th>Trošak ture (EUR)</th><th>Trošak / toni (EUR/t)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <div class="warn" id="warnText"></div>
+  <div class="note" id="noteText"></div>
+</div>
+
+<!-- ── POVIJEST ── -->
+<div class="card history-card" id="historyCard" style="display:none">
+  <h2>&#128340; Povijest izračuna ruta <button class="print-btn" style="float:right;background:#94a3b8" onclick="clearHistory()">Obriši</button></h2>
+  <div class="dist-table-wrap"><div id="historyList"></div></div>
+</div>
+
+</div><!-- /.layout -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ════════════════════════════════════════════════
+//  KONFIGURACIJA
+// ════════════════════════════════════════════════
+const ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjkxMzJkOTdjN2I4YTQ5NzJiZGI5YThjZTFlOGE4YWUwIiwiaCI6Im11cm11cjY0In0=";
+const ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-hgv/geojson";
+
+// ── AUTO CIJENA GORIVA (dnevno ažurira zakazani zadatak) ──
+// Izvor: cijenegoriva.hr/kompanije/shell — Shell V-Power EuroDiesel (Min)
+// Obračun: neto = Min / 1,25 (PDV) − 0,08 (komercijalni popust)
+// === AUTO_FUEL_BLOCK_START === (zakazani zadatak mijenja sljedeću liniju)
+const AUTO_FUEL = { price: 1.24, grossMin: 1.65, date: "26.6.2026" };
+// === AUTO_FUEL_BLOCK_END ===
+
+const $ = id => document.getElementById(id);
+
+async function fetchWithTimeout(url, opts = {}, ms = 15000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...opts, signal: ctrl.signal }); }
+  finally { clearTimeout(t); }
+}
+
+// ════════════════════════════════════════════════
+//  FIKSNE KOORDINATE
+// ════════════════════════════════════════════════
+const DEFAULT_ORIGIN  = { lat:46.0036990, lon:15.8863422, display:'Betonara Mokrice' };
+const BETONARA_MOKRICE = { lat:46.0036990, lon:15.8863422, display:'Betonara Mokrice' };
+
+const QUARRY_COORDS = {
+  'Betonara Mokrice':               { lat:46.0036990, lon:15.8863422 },
+  'Kamenolom Holcim – Očura':       { lat:46.1935753, lon:15.9931527 },
+  'Kamenolom Vugrinec – Golubovec': { lat:46.1730412, lon:15.9830608 },
+  'Kamenolom Pregrada':             { lat:46.1649898, lon:15.7407642 },
+  'Sljunčara LTK – Mali Bukovec':   { lat:46.300596,  lon:16.697898  },
+  'Sljunčara Colas – Hrastvoljan':  { lat:46.2993451, lon:16.5375369 },
+  'Sljunčara IGMA – Keter':         { lat:46.2319636, lon:16.921208  },
+  'Sljunčara IGMA – Gabajeva Greda':{ lat:46.1578672, lon:17.0114771 },
+  'Sljunčara Eurobeton – Prelog':   { lat:46.3319150, lon:16.6396051 },
+};
+
+// Grupiranje za <select> utovara
+const QUARRY_GROUPS = [
+  { label:'Betonara',   keys:['Betonara Mokrice'] },
+  { label:'Kamenolomi', keys:['Kamenolom Holcim – Očura','Kamenolom Vugrinec – Golubovec','Kamenolom Pregrada'] },
+  { label:'Sljunčare',  keys:['Sljunčara LTK – Mali Bukovec','Sljunčara Colas – Hrastvoljan','Sljunčara IGMA – Keter','Sljunčara IGMA – Gabajeva Greda','Sljunčara Eurobeton – Prelog'] },
+];
+
+// Česti istovari — dodaj ovdje { 'Naziv': {lat, lon} } pa se pojave u padajućem popisu istovara
+const FREQUENT_DESTINATIONS = {
+  // 'Gradilište XY – Zagreb': { lat:45.8150, lon:15.9819 },
+};
+
+// Profili vozila — dodaj nove objekte za više vozila
+const VEHICLE_PROFILES = {
+  'Šleper 28 t': {
+    payload:28, fuelConsEmpty:35, fuelConsLoaded:45, tireCount:18, vehicleValue:60000,
+    truckHeight:4.0, truckWeight:40, truckLength:16.5, truckAxle:11.5
+  },
+};
+
+// ════════════════════════════════════════════════
+//  POPUNJAVANJE <select> ELEMENATA
+// ════════════════════════════════════════════════
+function buildQuarrySelect(sel) {
+  sel.innerHTML = '<option value="">— Odaberi lokaciju utovara —</option>';
+  QUARRY_GROUPS.forEach((g, gi) => {
+    const og = document.createElement('optgroup'); og.label = g.label;
+    g.keys.forEach(k => {
+      const o = document.createElement('option');
+      o.value = k; o.setAttribute('data-key', k); o.textContent = k;
+      og.appendChild(o);
+    });
+    sel.appendChild(og);
+  });
+}
+buildQuarrySelect($('locQuarry'));
+buildQuarrySelect($('locQuarry2'));
+
+(function buildFreqSelect(){
+  const keys = Object.keys(FREQUENT_DESTINATIONS);
+  const sel = $('locDestFreq');
+  if (!keys.length) return;
+  sel.style.display = 'block';
+  sel.innerHTML = '<option value="">— Česti istovari —</option>';
+  keys.forEach(k => { const o=document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o); });
+  sel.addEventListener('change', () => {
+    const k = sel.value; if (!k) return;
+    $('locTo').value = k;
+    selectedDestCoords = { ...FREQUENT_DESTINATIONS[k], display:k };
+    $('istovarBetonara').checked = false;
+  });
+})();
+
+(function buildVehicleSelect(){
+  const sel = $('vehicleProfile');
+  Object.keys(VEHICLE_PROFILES).forEach(k => { const o=document.createElement('option'); o.value=k; o.textContent=k; sel.appendChild(o); });
+  sel.addEventListener('change', () => {
+    const p = VEHICLE_PROFILES[sel.value]; if (!p) return;
+    Object.entries(p).forEach(([id, val]) => { if ($(id)) $(id).value = val; });
+    calc(); saveParams();
+  });
+})();
+
+// ════════════════════════════════════════════════
+//  COST CALCULATOR
+// ════════════════════════════════════════════════
+const DISTANCES = [5,10,20,30,50,75,100,150,200];
+const COLORS = ['#f0c040','#4da8e8','#6ee09a','#e87a5d','#b388ff','#f48fb1'];
+
+function fmt0(n) { return Math.round(n).toLocaleString('hr'); }
+function eur(n)  { return n.toFixed(2).replace('.', ',') + ' €'; }
+
+function saveParams() {
+  try {
+    const o = {};
+    document.querySelectorAll('input[type="number"]').forEach(el => o[el.id] = el.value);
+    localStorage.setItem('nghCalcParams', JSON.stringify(o));
+    localStorage.setItem('nghCalcParamsDate', new Date().toISOString());
+  } catch (e) { /* ignoriraj */ }
+}
+function loadParams() {
+  try {
+    const s = localStorage.getItem('nghCalcParams');
+    if (!s) return;
+    const o = JSON.parse(s);
+    Object.entries(o).forEach(([id, val]) => { if ($(id) && val !== '') $(id).value = val; });
+  } catch (e) { /* ignoriraj */ }
+}
+function showParamsDate() {
+  const d = localStorage.getItem('nghCalcParamsDate');
+  const txt = d ? `Parametri zadnji put ažurirani: ${new Date(d).toLocaleString('hr')}. ` : '';
+  return txt;
+}
+
+// Jedinstveni izvor istine
+function computeCost() {
+  const v = id => Math.max(0, parseFloat($(id).value) || 0);
+  const fuelPrice = v('fuelPrice');
+  const consEmpty = v('fuelConsEmpty'), consLoaded = v('fuelConsLoaded');
+  const fuelEmptyKm = consEmpty/100 * fuelPrice;
+  const fuelLoadedKm = consLoaded/100 * fuelPrice;
+  const fuelAvgKm = (fuelEmptyKm + fuelLoadedKm) / 2;
+
+  const c_tires = v('tireCount') * v('tireCost') / (v('tireLife') || 1);
+  const c_depr  = v('vehicleValue') / (v('deprYears') || 1) / (v('annualKm') || 1);
+  const c_insur = v('insurance') / (v('annualKm') || 1);
+  const c_maint = v('maintenance') / (v('annualKm') || 1);
+  const nonFuelDriver = c_tires + c_depr + c_insur + c_maint;
+
+  const driverRate = v('driverRate'), avgSpeed = v('avgSpeed') || 1;
+  const c_driverPerKm = driverRate / avgSpeed;
+  const generalTotal = fuelAvgKm + nonFuelDriver + c_driverPerKm;
+
+  return {
+    fuelEmptyKm, fuelLoadedKm, fuelAvgKm,
+    c_tires, c_depr, c_insur, c_maint, c_driverPerKm, nonFuelDriver, generalTotal,
+    driverRate, avgSpeed, annualKm: v('annualKm') || 1, payload: v('payload') || 1,
+    manipUtovar: v('manipUtovar'), manipIstovar: v('manipIstovar'),
+    marginPct: v('marginPct'), targetPricePerT: parseFloat($('targetPricePerT').value) || 0,
+  };
+}
+function getCurrentTotalKm() { return computeCost().generalTotal; }
+
+function calc() {
+  const r = computeCost();
+  const total = r.generalTotal;
+
+  $('res_per_km').textContent  = total.toFixed(4).replace('.',',') + ' €';
+  $('res_per_tkm').textContent = (total / r.payload).toFixed(4).replace('.',',') + ' €';
+  $('res_annual').textContent  = fmt0(total * r.annualKm) + ' €';
+
+  const items = [
+    { l:'Gorivo (prosj.)', v:r.fuelAvgKm  },
+    { l:'Vozač',           v:r.c_driverPerKm },
+    { l:'Gume',            v:r.c_tires   },
+    { l:'Amortizacija',    v:r.c_depr    },
+    { l:'Servisiranje',    v:r.c_maint   },
+    { l:'Osiguranje',      v:r.c_insur   },
+  ];
+  const bd = $('breakdownBars'); bd.innerHTML = '';
+  items.forEach((item, i) => {
+    const pct = total > 0 ? item.v / total * 100 : 0;
+    const row = document.createElement('div'); row.className = 'bar-row';
+    row.innerHTML = `<div class="bar-label">${item.l}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(1)}%;background:${COLORS[i]}"></div></div>
+      <div class="bar-val">${item.v.toFixed(4).replace('.',',')} € <span style="color:#7a9ec0;font-weight:400">(${pct.toFixed(0)}%)</span></div>`;
+    bd.appendChild(row);
+  });
+
+  const tbody = document.querySelector('#distTable tbody'); tbody.innerHTML = '';
+  DISTANCES.forEach(d => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${d} km</td><td>${(total*d).toFixed(2).replace('.',',')} €</td><td>${(total*d/r.payload).toFixed(2).replace('.',',')} €</td>`;
+    tbody.appendChild(tr);
+  });
+
+  const warnings = [];
+  if (!(parseFloat($('payload').value) > 0)) warnings.push('Nosivost nije ispravno unesena — koristi se 1 t.');
+  document.querySelectorAll('input[type="number"]').forEach(el => {
+    const val = parseFloat(el.value);
+    const bad = el.value !== '' && (isNaN(val) || val < 0);
+    el.classList.toggle('invalid', bad);
+    if (bad) warnings.push(`Neispravan unos: "${el.id}".`);
+  });
+  $('warnText').textContent = warnings.length ? '⚠️ ' + warnings.join(' ') : '';
+
+  $('noteText').textContent = `${showParamsDate()}Opći EUR/km koristi prosjek potrošnje prazno/natovareno. Detaljni izračun rute razdvaja prazne i natovarene dionice te vozača računa po stvarnom vremenu + manipulacija. Cestarine se unose ručno.`;
+}
+
+document.querySelectorAll('input[type="number"]').forEach(inp =>
+  inp.addEventListener('input', () => { calc(); saveParams(); }));
+
+// Auto cijena goriva ima prednost pred spremljenom vrijednošću (ažurira se dnevno)
+function applyAutoFuel() {
+  if (!AUTO_FUEL || !(AUTO_FUEL.price > 0)) return;
+  $('fuelPrice').value = AUTO_FUEL.price;
+  const note = $('fuelAutoNote');
+  if (note) note.innerHTML = `&#128260; Auto: <strong>${AUTO_FUEL.price.toFixed(3).replace('.',',')} €/l</strong> neto &middot; Shell V-Power EuroDiesel (Min ${AUTO_FUEL.grossMin.toFixed(2).replace('.',',')} € s PDV) &middot; ${AUTO_FUEL.date}`;
+}
+
+loadParams();
+applyAutoFuel();
+calc();
+
+// ── PWA: učitaj dnevnu cijenu goriva s hosta (GitHub Actions je dnevno osvježava) ──
+async function loadRemoteFuel() {
+  try {
+    const res = await fetch('./data/fuel-price.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d && d.price > 0) {
+      AUTO_FUEL.price = d.price;
+      if (d.grossMin) AUTO_FUEL.grossMin = d.grossMin;
+      if (d.date) AUTO_FUEL.date = d.date;
+      applyAutoFuel();
+      calc();
+    }
+  } catch (e) { /* offline ili nema datoteke — koristi ugrađenu cijenu */ }
+}
+loadRemoteFuel();
+
+// ── PWA: registracija service workera (offline rad + instalacija na ekran) ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+let originCoords       = {...DEFAULT_ORIGIN};
+let selectedDestCoords = null;
+let selectedUtovarCoords  = null;
+let selectedUtovar2Coords = null;
+let selectedDest2Coords   = null;
+
+// ════════════════════════════════════════════════
+//  ORIGIN TOGGLE
+// ════════════════════════════════════════════════
+function toggleCustomOrigin() {
+  const wrap = $('customOriginWrap');
+  const show = wrap.style.display === 'none';
+  wrap.style.display = show ? 'block' : 'none';
+  $('originEditBtn').textContent = show ? '✕ Zatvori' : '✏ Promijeni';
+  if (!show) resetOrigin();
+}
+function resetOrigin() {
+  originCoords = {...DEFAULT_ORIGIN};
+  $('locOrigin').value = '';
+  $('originLabel').textContent = 'Betonara Mokrice';
+  $('customOriginWrap').style.display = 'none';
+  $('originEditBtn').textContent = '✏ Promijeni';
+}
+function toggleIstovarBetonara(cb) {
+  const input = $('locTo');
+  if (cb.checked) {
+    input.value = 'Betonara Mokrice';
+    input.style.background = '#eaf3ff'; input.style.color = '#2e6cb8'; input.style.fontWeight = '600';
+    selectedDestCoords = {...BETONARA_MOKRICE};
+  } else {
+    input.value = '';
+    input.style.background = ''; input.style.color = ''; input.style.fontWeight = '';
+    selectedDestCoords = null;
+  }
+}
+function toggleReturnTrip() {
+  const show = $('returnTripCheck').checked;
+  $('returnTripFields').style.display = show ? 'block' : 'none';
+  if (show && !$('locTo2').value) {
+    $('locTo2').value = 'Betonara Mokrice';
+    selectedDest2Coords = {...BETONARA_MOKRICE};
+  }
+}
+
+// ════════════════════════════════════════════════
+//  AUTOCOMPLETE FACTORY (jedan delegirani document listener)
+// ════════════════════════════════════════════════
+const AC_INSTANCES = [];
+document.addEventListener('click', e => {
+  AC_INSTANCES.forEach(ac => {
+    const container = ac.inputEl.closest('.route-field,.origin-custom-wrap');
+    if (!container || !container.contains(e.target)) ac.hide();
+  });
+});
+
+function makeAc(inputEl, dropdownEl, onSelect, onType) {
+  let timer = null, results = [], idx = -1;
+  function hide() { dropdownEl.style.display = 'none'; idx = -1; }
+  AC_INSTANCES.push({ inputEl, hide });
+
+  inputEl.addEventListener('input', () => {
+    onType && onType();
+    clearTimeout(timer);
+    const q = inputEl.value.trim();
+    if (q.length < 3) { hide(); return; }
+    timer = setTimeout(() => fetch_(q), 350);
+  });
+  inputEl.addEventListener('keydown', e => {
+    const items = dropdownEl.querySelectorAll('.ac-item');
+    if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(idx+1, items.length-1); hl(items); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx-1, 0); hl(items); }
+    else if (e.key === 'Enter') { if (idx >= 0 && items[idx]) sel(idx); else { hide(); calcRoute(); } }
+    else if (e.key === 'Escape') hide();
+  });
+  async function fetch_(q) {
+    try {
+      const res = await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`,
+        { headers: { 'Accept-Language': 'hr,en' } }, 8000);
+      if (!res.ok) { hide(); return; }
+      results = await res.json(); render();
+    } catch { hide(); }
+  }
+  function render() {
+    dropdownEl.innerHTML = ''; idx = -1;
+    if (!results.length) { hide(); return; }
+    results.forEach((r, i) => {
+      const p = r.display_name.split(',');
+      const d = document.createElement('div'); d.className = 'ac-item';
+      d.innerHTML = `<div class="ac-main">${p.slice(0,2).join(',').trim()}</div><div class="ac-sub">${p.slice(2,5).join(',').trim()}</div>`;
+      d.addEventListener('mousedown', e => { e.preventDefault(); sel(i); });
+      dropdownEl.appendChild(d);
+    });
+    dropdownEl.style.display = 'block';
+  }
+  function hl(items) { items.forEach((el, i) => el.classList.toggle('active', i === idx)); if (items[idx]) items[idx].scrollIntoView({ block:'nearest' }); }
+  function sel(i) {
+    const r = results[i];
+    inputEl.value = r.display_name.split(',').slice(0,3).join(',').trim();
+    onSelect({ lat: parseFloat(r.lat), lon: parseFloat(r.lon), display: r.display_name });
+    hide();
+  }
+}
+
+makeAc($('locOrigin'), $('acDropdownOrigin'),
+  coords => { originCoords = coords; $('originLabel').textContent = coords.display.split(',')[0]; },
+  () => { originCoords = null; });
+
+makeAc($('locFrom'), $('acDropdownFrom'),
+  coords => { selectedUtovarCoords = coords; $('locQuarry').value = ''; },
+  () => { selectedUtovarCoords = null; });
+$('locQuarry').addEventListener('change', () => { $('locFrom').value = ''; selectedUtovarCoords = null; });
+
+makeAc($('locTo'), $('acDropdown'),
+  coords => { selectedDestCoords = coords; },
+  () => {
+    selectedDestCoords = null;
+    if ($('locDestFreq')) $('locDestFreq').value = '';
+    const cb = $('istovarBetonara');
+    if (cb && cb.checked) { cb.checked = false; const inp=$('locTo'); inp.style.background=''; inp.style.color=''; inp.style.fontWeight=''; }
+  });
+
+makeAc($('locFrom2'), $('acDropdownFrom2'),
+  coords => { selectedUtovar2Coords = coords; $('locQuarry2').value = ''; },
+  () => { selectedUtovar2Coords = null; });
+$('locQuarry2').addEventListener('change', () => { $('locFrom2').value = ''; selectedUtovar2Coords = null; });
+
+makeAc($('locTo2'), $('acDropdown2'),
+  coords => { selectedDest2Coords = coords; },
+  () => { selectedDest2Coords = null; });
+
+// ════════════════════════════════════════════════
+//  GEOCODING + ROUTING
+// ════════════════════════════════════════════════
+async function geocodeSingle(query) {
+  let res;
+  try {
+    res = await fetchWithTimeout(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'hr,en' } }, 10000);
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Geokodiranje ne odgovara (timeout). Pokušaj ponovno.');
+    throw new Error('Nema veze sa servisom za geokodiranje (Nominatim).');
+  }
+  if (!res.ok) {
+    if (res.status === 429) throw new Error('Previše zahtjeva prema geokodiranju — pričekaj nekoliko sekundi.');
+    throw new Error(`Geokodiranje vratilo grešku (HTTP ${res.status}).`);
+  }
+  const data = await res.json();
+  if (!data.length) throw new Error(`Nije pronađena lokacija: "${query}". Pokušaj dodati grad ili poštanski broj.`);
+  return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), display: data[0].display_name };
+}
+
+function truckRestrictions() {
+  const v = id => Math.max(0, parseFloat($(id).value) || 0);
+  return { height: v('truckHeight'), weight: v('truckWeight'), length: v('truckLength'), axleload: v('truckAxle'), width: 2.55 };
+}
+
+// Kamionsko rutiranje preko OpenRouteService (driving-hgv)
+async function getRouteLeg(A, B) {
+  const body = {
+    coordinates: [[A.lon, A.lat], [B.lon, B.lat]],
+    radiuses: [-1, -1],
+    options: { vehicle_type: 'hgv', profile_params: { restrictions: truckRestrictions() } },
+  };
+  let res;
+  try {
+    res = await fetchWithTimeout(ORS_URL, {
+      method: 'POST',
+      headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json', 'Accept': 'application/geo+json' },
+      body: JSON.stringify(body),
+    }, 15000);
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Servis za rutiranje ne odgovara (timeout).');
+    throw new Error('Nema veze sa servisom za rutiranje (ORS).');
+  }
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) throw new Error('ORS API ključ nije prihvaćen — provjeri ključ.');
+    if (res.status === 429) throw new Error('Kvota ORS-a iscrpljena (limit zahtjeva) — pokušaj kasnije.');
+    throw new Error(`Servis za rutiranje vratio grešku (HTTP ${res.status}).`);
+  }
+  let data;
+  try { data = await res.json(); } catch { throw new Error('Neispravan odgovor servisa za rutiranje.'); }
+  const f = data.features && data.features[0];
+  if (!f || !f.properties || !f.properties.summary) throw new Error('ORS nije mogao izračunati dionicu rute.');
+  return { distKm: f.properties.summary.distance/1000, durMin: f.properties.summary.duration/60, geometry: f.geometry.coordinates };
+}
+
+// Fallback: zračna udaljenost × 1,3 kad rutiranje nije dostupno
+function haversineKm(A, B) {
+  const R = 6371, toRad = x => x*Math.PI/180;
+  const dLat = toRad(B.lat-A.lat), dLon = toRad(B.lon-A.lon);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(A.lat))*Math.cos(toRad(B.lat))*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function haversineLeg(A, B) {
+  const km = haversineKm(A, B) * 1.3;
+  const avgSpeed = Math.max(1, parseFloat($('avgSpeed').value) || 50);
+  return { distKm: km, durMin: km/avgSpeed*60, geometry: [[A.lon,A.lat],[B.lon,B.lat]] };
+}
+// Razriješi sve dionice; ako ORS padne, prebaci CIJELU rutu na procjenu
+async function resolveLegs(pairs) {
+  try { return { legs: await Promise.all(pairs.map(([a,b]) => getRouteLeg(a,b))), estimated: false }; }
+  catch (e) { return { legs: pairs.map(([a,b]) => haversineLeg(a,b)), estimated: true, reason: e.message }; }
+}
+
+// Kao getRouteLeg, ali traži i alternativne rute (do 3 po dionici)
+async function getRouteLegAlts(A, B) {
+  const body = {
+    coordinates: [[A.lon, A.lat], [B.lon, B.lat]],
+    radiuses: [-1, -1],
+    alternative_routes: { target_count: 3, weight_factor: 1.6, share_factor: 0.6 },
+    options: { vehicle_type: 'hgv', profile_params: { restrictions: truckRestrictions() } },
+  };
+  let res;
+  try {
+    res = await fetchWithTimeout(ORS_URL, {
+      method: 'POST',
+      headers: { 'Authorization': ORS_KEY, 'Content-Type': 'application/json', 'Accept': 'application/geo+json' },
+      body: JSON.stringify(body),
+    }, 15000);
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Servis za rutiranje ne odgovara (timeout).');
+    throw new Error('Nema veze sa servisom za rutiranje (ORS).');
+  }
+  // Ako ovaj upit ne podržava alternative — vrati jednu (najbolju) rutu
+  if (!res.ok) return [await getRouteLeg(A, B)];
+  let data;
+  try { data = await res.json(); } catch { throw new Error('Neispravan odgovor servisa za rutiranje.'); }
+  const feats = data.features || [];
+  if (!feats.length) return [await getRouteLeg(A, B)];
+  return feats.map(f => ({ distKm: f.properties.summary.distance/1000, durMin: f.properties.summary.duration/60, geometry: f.geometry.coordinates }));
+}
+
+// Razriješi sve dionice s alternativama; ako ORS padne — procjena (haversine, bez alternativa)
+async function resolveLegsAlts(pairs) {
+  try {
+    const legsAlts = await Promise.all(pairs.map(([a,b]) => getRouteLegAlts(a,b)));
+    return { legsAlts, estimated: false };
+  } catch (e) {
+    return { legsAlts: pairs.map(([a,b]) => [haversineLeg(a,b)]), estimated: true };
+  }
+}
+
+function fmtDur(min) { if (min < 60) return Math.round(min)+' min'; return Math.floor(min/60)+'h '+Math.round(min%60)+'min'; }
+function shortName(display, key) {
+  if (key && key.includes('–')) return key.split('–')[1].trim();
+  return display ? display.split(',')[0] : key;
+}
+async function resolveLocationSnap(key, customVal, customCoords) {
+  if (customVal) return customCoords || await geocodeSingle(customVal);
+  if (!key) return null;
+  const c = QUARRY_COORDS[key];
+  if (!c) throw new Error(`Koordinate nisu definirane za: ${key}`);
+  return { ...c, display: key };
+}
+async function resolveOrigin(snap) {
+  if (snap.originWrapVisible && snap.originVal) return snap.originCoords || await geocodeSingle(snap.originVal);
+  return { ...DEFAULT_ORIGIN };
+}
+
+// ════════════════════════════════════════════════
+//  TROŠAK RUTE (detaljni model)
+// ════════════════════════════════════════════════
+// legs: [{distKm,durMin,loaded}], nUtovar/nIstovar broj manipulacija, nLoads broj tovara
+function buildRouteCost(legs, nUtovar, nIstovar, nLoads) {
+  const c = computeCost();
+  let vehicleCost = 0, totalKm = 0, driveMin = 0;
+  const legCosts = legs.map(l => {
+    const fuelKm = l.loaded ? c.fuelLoadedKm : c.fuelEmptyKm;
+    const lc = (fuelKm + c.nonFuelDriver) * l.distKm;
+    vehicleCost += lc; totalKm += l.distKm; driveMin += l.durMin;
+    return lc;
+  });
+  const manipMin = nUtovar*c.manipUtovar + nIstovar*c.manipIstovar;
+  const totalMin = driveMin + manipMin;
+  const driverCost = totalMin/60 * c.driverRate;
+  const tolls = Math.max(0, parseFloat($('tollAmount').value) || 0);
+  const total = vehicleCost + driverCost + tolls;
+
+  const tons = c.payload * nLoads;
+  const costPerT = total / tons;
+  let sellPerT, sellTotal, marginUsed;
+  if (c.targetPricePerT > 0) {
+    sellPerT = c.targetPricePerT; sellTotal = sellPerT * tons; marginUsed = (sellPerT/costPerT - 1) * 100;
+  } else {
+    marginUsed = c.marginPct; sellTotal = total * (1 + marginUsed/100); sellPerT = costPerT * (1 + marginUsed/100);
+  }
+  return { c, legCosts, vehicleCost, totalKm, driveMin, manipMin, totalMin, driverCost, tolls, total, tons, costPerT, sellPerT, sellTotal, marginUsed };
+}
+
+function kpiBlock(rc, estimated) {
+  return `
+    ${estimated ? '<div class="estimate-banner">⚠️ PROCJENA — servis za rutiranje nije bio dostupan, udaljenost je zračna × 1,3. Provjeri prije slanja ponude.</div>' : ''}
+    <div class="route-kpi-row">
+      <div class="route-kpi"><div class="val">${rc.totalKm.toFixed(1).replace('.',',')} km</div><div class="lbl">Udaljenost</div></div>
+      <div class="route-kpi"><div class="val">${fmtDur(rc.totalMin)}</div><div class="lbl">Vrijeme (+manip.)</div></div>
+      <div class="route-kpi"><div class="val">${eur(rc.total)}</div><div class="lbl">Trošak ture</div></div>
+      <div class="route-kpi"><div class="val">${eur(rc.costPerT)}</div><div class="lbl">Trošak / t</div></div>
+      <div class="route-kpi sell"><div class="val">${eur(rc.sellTotal)}</div><div class="lbl">Prodajna cijena</div></div>
+      <div class="route-kpi sell"><div class="val">${eur(rc.sellPerT)}</div><div class="lbl">Prodajna / t (marža ${rc.marginUsed.toFixed(0)}%)</div></div>
+    </div>`;
+}
+function legRow(badgeCls, badgeTxt, fromIcon, from, toIcon, to, leg, cost, tag) {
+  return `<div class="leg-row"><span class="leg-badge ${badgeCls}">${badgeTxt}</span> ${fromIcon} <strong>${from}</strong> &rarr; ${toIcon} <strong>${to}</strong> &nbsp;<span class="leg-dist">${leg.distKm.toFixed(1).replace('.',',')} km</span> <span style="color:#888">${fmtDur(leg.durMin)}</span> <span style="color:#c07020;font-weight:600">${eur(cost)}</span> <span style="color:#aaa;font-size:.72rem">${tag}</span></div>`;
+}
+
+// ════════════════════════════════════════════════
+//  GLAVNI IZRAČUN RUTE
+// ════════════════════════════════════════════════
+let routeState = null;
+
+async function calcRoute() {
+  const btn = $('calcRouteBtn');
+  const box = $('routeResult');
+  $('compareResult').innerHTML = '';
+
+  const snap = {
+    isReturn: $('returnTripCheck').checked,
+    deadhead: $('deadheadCheck').checked,
+    originWrapVisible: $('customOriginWrap').style.display !== 'none',
+    originVal: $('locOrigin').value.trim(),
+    originCoords: originCoords ? { ...originCoords } : null,
+    toVal: $('locTo').value.trim(),
+    istovarBetonaraChecked: $('istovarBetonara').checked,
+    destCoords: selectedDestCoords ? { ...selectedDestCoords } : null,
+    quarryKey: $('locQuarry').value || '',
+    fromVal: $('locFrom').value.trim(),
+    utovarCoords: selectedUtovarCoords ? { ...selectedUtovarCoords } : null,
+    quarry2Key: $('locQuarry2').value || '',
+    fromVal2: $('locFrom2').value.trim(),
+    utovar2Coords: selectedUtovar2Coords ? { ...selectedUtovar2Coords } : null,
+    toVal2: $('locTo2').value.trim(),
+    dest2Coords: selectedDest2Coords ? { ...selectedDest2Coords } : null,
+  };
+
+  btn.disabled = true;
+  box.className = 'route-result loading';
+  box.innerHTML = '<span class="spinner"></span> Tražim lokacije&#8230;';
+
+  try {
+    const origin = await resolveOrigin(snap);
+    originCoords = origin;
+
+    const utovar1 = await resolveLocationSnap(snap.quarryKey, snap.fromVal, snap.utovarCoords);
+    if (!utovar1) { return errBox(box, btn, 'Odaberi ili upiši lokaciju utovara.'); }
+    if (!snap.toVal) { return errBox(box, btn, 'Upiši lokaciju istovara.'); }
+
+    let destCoords = snap.destCoords;
+    if (snap.istovarBetonaraChecked) destCoords = { ...BETONARA_MOKRICE };
+    const istovar1 = destCoords || await geocodeSingle(snap.toVal);
+
+    const orig = origin.display.split(',')[0];
+    const u1 = shortName(utovar1.display, utovar1.display), d1 = shortName(istovar1.display);
+    let pairs, meta, pointSeq, pointLabels, nUtovar, nIstovar, nLoads;
+
+    if (snap.isReturn) {
+      const utovar2 = await resolveLocationSnap(snap.quarry2Key, snap.fromVal2, snap.utovar2Coords);
+      if (!utovar2) { return errBox(box, btn, 'Odaberi ili upiši lokaciju utovara za povratak.'); }
+      if (!snap.toVal2) { return errBox(box, btn, 'Upiši lokaciju istovara za povratak.'); }
+      let istovar2;
+      if (snap.toVal2 === 'Betonara Mokrice' && !snap.dest2Coords) istovar2 = { ...BETONARA_MOKRICE };
+      else istovar2 = snap.dest2Coords || await geocodeSingle(snap.toVal2);
+      const u2 = shortName(utovar2.display, utovar2.display), d2 = shortName(istovar2.display);
+
+      pairs = [[origin,utovar1],[utovar1,istovar1],[istovar1,utovar2],[utovar2,istovar2]];
+      meta = [
+        { loaded:false, color:'#94a3b8', dash:'8 5', badgeCls:'empty',  badgeTxt:'Dionica 1', fromIcon:'🏠', fromLabel:orig, toIcon:'⛏', toLabel:u1, tag:'(prazno)', section:'➡️ Polazna tura' },
+        { loaded:true,  color:'#2e6cb8', dash:null,  badgeCls:'go',     badgeTxt:'Dionica 2', fromIcon:'⛏', fromLabel:u1,  toIcon:'📍', toLabel:d1, tag:'(natovareno)' },
+        { loaded:false, color:'#94a3b8', dash:'8 5', badgeCls:'empty',  badgeTxt:'Dionica 3', fromIcon:'📍', fromLabel:d1, toIcon:'⛏', toLabel:u2, tag:'(prazno)', section:'↩️ Povratna tura' },
+        { loaded:true,  color:'#6b8f3a', dash:null,  badgeCls:'return', badgeTxt:'Dionica 4', fromIcon:'⛏', fromLabel:u2,  toIcon:'🏁', toLabel:d2, tag:'(natovareno)' },
+      ];
+      pointSeq = [origin,utovar1,istovar1,utovar2,istovar2];
+      pointLabels = ['Polazište',u1,d1,u2,d2];
+      nUtovar = 2; nIstovar = 2; nLoads = 2;
+
+    } else {
+      pairs = [[origin,utovar1],[utovar1,istovar1]];
+      meta = [
+        { loaded:false, color:'#94a3b8', dash:'8 5', badgeCls:'empty', badgeTxt:'Dionica 1', fromIcon:'🏠', fromLabel:orig, toIcon:'⛏', toLabel:u1, tag:'(prazno)' },
+        { loaded:true,  color:'#2e6cb8', dash:null,  badgeCls:'go',    badgeTxt:'Dionica 2', fromIcon:'⛏', fromLabel:u1,  toIcon:'📍', toLabel:d1, tag:'(natovareno)' },
+      ];
+      pointSeq = [origin,utovar1,istovar1];
+      pointLabels = ['Polazište',u1,d1];
+      nUtovar = 1; nIstovar = 1; nLoads = 1;
+      if (snap.deadhead) {
+        pairs.push([istovar1, origin]);
+        meta.push({ loaded:false, color:'#cbb26b', dash:'4 6', badgeCls:'empty', badgeTxt:'Povratak', fromIcon:'📍', fromLabel:d1, toIcon:'🏠', toLabel:orig, tag:'(prazno na bazu)' });
+        pointSeq.push(origin); pointLabels.push('Baza');
+      }
+    }
+
+    box.innerHTML = `<span class="spinner"></span> Kamionsko rutiranje (${pairs.length} dionice, tražim alternative)&#8230;`;
+    const { legsAlts, estimated } = await resolveLegsAlts(pairs);
+
+    routeState = {
+      legs: meta.map((m, i) => ({ ...m, alts: legsAlts[i] || [], sel: 0 })),
+      pointSeq, pointLabels, nUtovar, nIstovar, nLoads, estimated,
+    };
+    renderRouteState();
+    setTimeout(() => $('mapCard').scrollIntoView({ behavior:'smooth', block:'start' }), 150);
+
+    const rc0 = currentRouteCost();
+    addHistory({ from: orig, to: pointLabels[pointLabels.length - 1], type: snap.isReturn ? 'Povratna' : (snap.deadhead ? 'Jedno. +povratak' : 'Jednosmjerna'), km: rc0.totalKm, cost: rc0.total, sell: rc0.sellTotal, estimated });
+
+  } catch (err) {
+    box.className = 'route-result error';
+    box.innerHTML = `&#9888;&#65039; Greška: ${err.message}`;
+  } finally { btn.disabled = false; }
+}
+
+function currentRouteCost() {
+  const sel = routeState.legs.map(l => ({ ...l.alts[l.sel], loaded: l.loaded }));
+  return buildRouteCost(sel, routeState.nUtovar, routeState.nIstovar, routeState.nLoads);
+}
+
+function errBox(box, btn, msg) {
+  box.className = 'route-result error';
+  box.innerHTML = `&#9888;&#65039; ${msg}`;
+  btn.disabled = false;
+}
+
+function renderRouteState() {
+  const box = $('routeResult');
+  const rs = routeState;
+  const rc = currentRouteCost();
+  let html = kpiBlock(rc, rs.estimated);
+  rs.legs.forEach((l, i) => {
+    if (l.section) html += `<div class="leg-section-title">${l.section}</div>`;
+    const leg = l.alts[l.sel];
+    const altInfo = l.alts.length > 1 ? ` <span style="color:#2e6cb8;font-size:.7rem;font-weight:600">(ruta ${l.sel + 1}/${l.alts.length})</span>` : '';
+    html += legRow(l.badgeCls, l.badgeTxt, l.fromIcon, l.fromLabel, l.toIcon, l.toLabel, leg, rc.legCosts[i], l.tag + altInfo);
+  });
+  html += costFooter(rc, rs.nLoads);
+  if (rs.legs.some(l => l.alts.length > 1))
+    html += `<div class="route-meta" style="color:#2e6cb8">&#128161; Sive iscrtkane linije na karti su alternativne rute &mdash; klikni neku da je odabereš i preračunaš trošak.</div>`;
+  html += `<button class="print-btn" onclick="window.print()">&#128424;&#65039; Ispiši / spremi PDF</button>`;
+  box.className = 'route-result success';
+  box.innerHTML = html;
+  drawRouteMap();
+}
+
+function costFooter(rc, nLoads) {
+  return `<div class="route-meta">
+    Vozni trošak: <strong>${eur(rc.vehicleCost)}</strong> &middot; Vozač (${fmtDur(rc.totalMin)} uklj. manip.): <strong>${eur(rc.driverCost)}</strong> &middot; Cestarina: <strong>${eur(rc.tolls)}</strong><br>
+    Trošak po toni računat na ${nLoads} tovar(a) × ${rc.c.payload} t = ${rc.tons} t. <em>Izvor rute: OpenRouteService (kamionski profil). Cijene neto.</em>
+  </div>`;
+}
+
+// ════════════════════════════════════════════════
+//  USPOREDBA LOKACIJA UTOVARA
+// ════════════════════════════════════════════════
+async function compareQuarries() {
+  const btn = $('compareBtn');
+  const out = $('compareResult');
+  const toVal = $('locTo').value.trim();
+  if (!toVal) { out.innerHTML = '<div class="route-result error" style="display:block">&#9888;&#65039; Prvo upiši lokaciju istovara, pa usporedi.</div>'; return; }
+
+  const deadhead = $('deadheadCheck').checked;
+  const originWrapVisible = $('customOriginWrap').style.display !== 'none';
+  const originVal = $('locOrigin').value.trim();
+  const originSnapCoords = originCoords ? { ...originCoords } : null;
+
+  btn.disabled = true;
+  out.innerHTML = '<div class="route-result loading" style="display:block"><span class="spinner"></span> Uspoređujem sve lokacije utovara&#8230;</div>';
+
+  try {
+    const origin = (originWrapVisible && originVal) ? (originSnapCoords || await geocodeSingle(originVal)) : { ...DEFAULT_ORIGIN };
+    let istovar;
+    if ($('istovarBetonara').checked) istovar = { ...BETONARA_MOKRICE };
+    else istovar = selectedDestCoords || await geocodeSingle(toVal);
+
+    const entries = [];
+    let anyEstimate = false;
+    for (const [name, coord] of Object.entries(QUARRY_COORDS)) {
+      const q = { ...coord, display: name };
+      const pairs = [[origin, q], [q, istovar]];
+      if (deadhead) pairs.push([istovar, origin]);
+      const { legs, estimated } = await resolveLegs(pairs);
+      if (estimated) anyEstimate = true;
+      const tagged = [{...legs[0],loaded:false},{...legs[1],loaded:true}];
+      if (deadhead) tagged.push({...legs[2],loaded:false});
+      const rc = buildRouteCost(tagged, 1, 1, 1);
+      entries.push({ name, km: rc.totalKm, cost: rc.total, costPerT: rc.costPerT, sellPerT: rc.sellPerT });
+    }
+    entries.sort((a, b) => a.cost - b.cost);
+
+    let rows = entries.map((e, i) =>
+      `<tr class="${i===0?'best':''}"><td>${i===0?'&#11088; ':''}${e.name}</td><td>${e.km.toFixed(1).replace('.',',')}</td><td>${eur(e.cost)}</td><td>${eur(e.costPerT)}</td><td>${eur(e.sellPerT)}</td></tr>`
+    ).join('');
+    out.innerHTML = `
+      ${anyEstimate ? '<div class="estimate-banner">⚠️ Dio rezultata je procjena (servis rutiranja djelomično nedostupan).</div>' : ''}
+      <div class="leg-section-title">Usporedba lokacija utovara &rarr; ${shortName(istovar.display)}${deadhead?' (s povratkom na bazu)':''}</div>
+      <table><thead><tr><th>Lokacija utovara</th><th>km</th><th>Trošak ture</th><th>Trošak/t</th><th>Prodajna/t</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="route-meta"><em>Najjeftinija opcija označena zvjezdicom. Izvor: OpenRouteService.</em></div>`;
+  } catch (err) {
+    out.innerHTML = `<div class="route-result error" style="display:block">&#9888;&#65039; Greška: ${err.message}</div>`;
+  } finally { btn.disabled = false; }
+}
+
+// ════════════════════════════════════════════════
+//  POVIJEST IZRAČUNA
+// ════════════════════════════════════════════════
+function addHistory(e) {
+  try {
+    const arr = JSON.parse(localStorage.getItem('nghRouteHistory') || '[]');
+    arr.unshift({ ...e, ts: new Date().toISOString() });
+    localStorage.setItem('nghRouteHistory', JSON.stringify(arr.slice(0, 10)));
+  } catch (err) {}
+  renderHistory();
+}
+function clearHistory() {
+  try { localStorage.removeItem('nghRouteHistory'); } catch (e) {}
+  renderHistory();
+}
+function renderHistory() {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem('nghRouteHistory') || '[]'); } catch (e) {}
+  const card = $('historyCard');
+  if (!arr.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const rows = arr.map(e =>
+    `<tr><td>${new Date(e.ts).toLocaleString('hr')}</td><td>${e.from} &rarr; ${e.to}</td><td>${e.type}</td><td style="text-align:right">${e.km.toFixed(1).replace('.',',')} km</td><td style="text-align:right">${eur(e.cost)}</td><td style="text-align:right">${eur(e.sell)}</td>${e.estimated?'<td>procjena</td>':'<td></td>'}</tr>`
+  ).join('');
+  $('historyList').innerHTML = `<table><thead><tr><th>Vrijeme</th><th>Ruta</th><th>Tip</th><th style="text-align:right">Udaljenost</th><th style="text-align:right">Trošak</th><th style="text-align:right">Prodajna</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+renderHistory();
+
+// ════════════════════════════════════════════════
+//  MAPA
+// ════════════════════════════════════════════════
+let map = null;
+function drawRouteMap() {
+  const rs = routeState;
+  const mapCard = $('mapCard');
+  mapCard.classList.add('visible');
+  const toLl = coords => coords.map(c => [c[1], c[0]]);
+
+  if (!map) {
+    map = L.map('routeMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom:18 }).addTo(map);
+  } else {
+    map.eachLayer(l => { if (l instanceof L.Polyline || l instanceof L.Marker) map.removeLayer(l); });
+  }
+
+  // Markeri točaka
+  const iconEmojis = ['🏠','⛏','📍','⛏','🏁','🏠'];
+  const iconBgs = ['#1a3a5c','#e87a5d','#2e6cb8','#6b8f3a','#1a3a5c','#1a3a5c'];
+  rs.pointSeq.forEach((pt, i) => {
+    const ic = L.divIcon({ className:'', html:`<div style="background:${iconBgs[i % iconBgs.length]};color:#fff;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.3)">${iconEmojis[i] || '📌'}</div>`, iconSize:[28,28], iconAnchor:[14,14] });
+    L.marker([pt.lat, pt.lon], { icon: ic }).addTo(map).bindPopup(`<strong>${rs.pointLabels[i] || ''}</strong>`);
+  });
+
+  // Prvo neodabrane alternative (ispod), klikabilne
+  rs.legs.forEach((l) => {
+    l.alts.forEach((alt, j) => {
+      if (j === l.sel) return;
+      const pl = L.polyline(toLl(alt.geometry), { color:'#9aa7b5', weight:3, dashArray:'4 6', opacity:.6 }).addTo(map);
+      pl.bindTooltip(`Alternativa: ${alt.distKm.toFixed(1).replace('.',',')} km, ${fmtDur(alt.durMin)} — klikni za odabir`, { sticky:true });
+      pl.on('click', () => { l.sel = j; renderRouteState(); });
+      pl.on('mouseover', () => pl.setStyle({ opacity:.95, weight:4 }));
+      pl.on('mouseout',  () => pl.setStyle({ opacity:.6,  weight:3 }));
+    });
+  });
+
+  // Zatim odabrane rute (iznad)
+  rs.legs.forEach((l) => {
+    const alt = l.alts[l.sel];
+    L.polyline(toLl(alt.geometry), { color:l.color, weight:5, dashArray:l.dash || null, opacity:.95 }).addTo(map)
+      .bindPopup(`${l.badgeTxt}: ${alt.distKm.toFixed(1).replace('.',',')} km, ${fmtDur(alt.durMin)}`);
+  });
+
+  const selCoords = rs.legs.flatMap(l => toLl(l.alts[l.sel].geometry));
+  if (selCoords.length) map.fitBounds(L.latLngBounds(selCoords).pad(0.12));
+  setTimeout(() => map.invalidateSize(), 60);
+}
+</script>
+</body>
+</html>
