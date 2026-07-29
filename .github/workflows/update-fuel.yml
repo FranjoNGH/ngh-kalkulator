@@ -2,7 +2,7 @@ name: Dnevno azuriranje cijene goriva
 
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 5 * * 2'
   workflow_dispatch:
 
 permissions:
