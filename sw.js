@@ -1,6 +1,8 @@
 // Service worker — NGH kalkulator prijevoza
-// Omogućuje instalaciju na početni zaslon i offline rad osnovne aplikacije.
-const CACHE = 'ngh-kalkulator-v1';
+// Instalacija na početni zaslon + offline rad. Aplikacija se dohvaća "mreža prvo"
+// pa svi korisnici automatski dobiju izmjene čim otvore link (uz internet),
+// a offline kopija služi samo kao rezerva.
+const CACHE = 'ngh-kalkulator-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -24,15 +26,30 @@ self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
 
-  // Cijena goriva: uvijek svježe s mreže, ako nema mreže — iz cachea
-  if (url.pathname.endsWith('/data/fuel-price.json')) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+  // Vanjski servisi (karta, rutiranje): samo mreža
+  if (url.origin !== self.location.origin) return;
+
+  // Aplikacija i podaci → MREŽA PRVO (svi odmah dobiju najnoviju verziju),
+  // offline fallback iz cachea. Osvježi cache pri svakom uspješnom dohvatu.
+  const isAppOrData =
+    e.request.mode === 'navigate' ||
+    url.pathname.endsWith('/') ||
+    url.pathname.endsWith('/index.html') ||
+    url.pathname.endsWith('/data/fuel-price.json');
+
+  if (isAppOrData) {
+    e.respondWith(
+      fetch(e.request)
+        .then(r => {
+          const copy = r.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+          return r;
+        })
+        .catch(() => caches.match(e.request))
+    );
     return;
   }
 
-  // Karte/rutiranje (vanjski servisi): samo mreža
-  if (url.origin !== self.location.origin) return;
-
-  // Osnovna aplikacija: prvo cache, pa mreža
+  // Statika (ikone, manifest): prvo cache, pa mreža
   e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
 });
