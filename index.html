@@ -426,11 +426,11 @@ select:focus, input[type="text"]:focus { outline: none; border-color: #2e6cb8; b
 const ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjkxMzJkOTdjN2I4YTQ5NzJiZGI5YThjZTFlOGE4YWUwIiwiaCI6Im11cm11cjY0In0=";
 const ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-hgv/geojson";
 
-// ── AUTO CIJENA GORIVA (dnevno ažurira zakazani zadatak) ──
-// Izvor: cijenegoriva.hr/kompanije/shell — Shell V-Power EuroDiesel (Min)
+// ── AUTO CIJENA GORIVA (dnevno ažurira GitHub Action) ──
+// Izvor: HAK (hak.hr, izvor Ministarstvo) — Petrol EURODIZEL AD B7 (Min)
 // Obračun: neto = Min / 1,25 (PDV) − 0,08 (komercijalni popust)
-// === AUTO_FUEL_BLOCK_START === (zakazani zadatak mijenja sljedeću liniju)
-const AUTO_FUEL = { price: 1.24, grossMin: 1.65, date: "26.6.2026" };
+// === AUTO_FUEL_BLOCK_START === (rezervna vrijednost; aplikacija učita svježu iz data/fuel-price.json)
+const AUTO_FUEL = { price: 1.32, grossMin: 1.75, date: "29.7.2026", source: "Petrol EURODIZEL AD B7 (Min)" };
 // === AUTO_FUEL_BLOCK_END ===
 
 const $ = id => document.getElementById(id);
@@ -637,14 +637,14 @@ function applyAutoFuel() {
   if (!AUTO_FUEL || !(AUTO_FUEL.price > 0)) return;
   $('fuelPrice').value = AUTO_FUEL.price;
   const note = $('fuelAutoNote');
-  if (note) note.innerHTML = `&#128260; Auto: <strong>${AUTO_FUEL.price.toFixed(3).replace('.',',')} €/l</strong> neto &middot; Shell V-Power EuroDiesel (Min ${AUTO_FUEL.grossMin.toFixed(2).replace('.',',')} € s PDV) &middot; ${AUTO_FUEL.date}`;
+  if (note) note.innerHTML = `&#128260; Auto: <strong>${AUTO_FUEL.price.toFixed(3).replace('.',',')} €/l</strong> neto &middot; ${AUTO_FUEL.source || 'dizel'} &middot; bruto ${AUTO_FUEL.grossMin.toFixed(2).replace('.',',')} € s PDV &middot; ${AUTO_FUEL.date}`;
 }
 
 loadParams();
 applyAutoFuel();
 calc();
 
-// ── PWA: učitaj dnevnu cijenu goriva s hosta (GitHub Actions je dnevno osvježava) ──
+// ── PWA: učitaj svježu cijenu goriva s hosta (GitHub Action je osvježava utorkom) ──
 async function loadRemoteFuel() {
   try {
     const res = await fetch('./data/fuel-price.json?ts=' + Date.now(), { cache: 'no-store' });
@@ -654,6 +654,7 @@ async function loadRemoteFuel() {
       AUTO_FUEL.price = d.price;
       if (d.grossMin) AUTO_FUEL.grossMin = d.grossMin;
       if (d.date) AUTO_FUEL.date = d.date;
+      if (d.source) AUTO_FUEL.source = d.source;
       applyAutoFuel();
       calc();
     }

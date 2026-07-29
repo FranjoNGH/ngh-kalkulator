@@ -1,10 +1,10 @@
-// Dohvaća cijenu Shell V-Power EuroDiesel (Min) s cijenegoriva.hr,
+// Dohvaća cijenu Petrol EURODIZEL AD B7 (Min) s HAK-a (hak.hr, izvor: Ministarstvo/mzoe-gor.hr),
 // računa neto = Min / 1,25 (PDV) - 0,08 (popust) i zapisuje u data/fuel-price.json.
 // Pokreće ga GitHub Action jednom dnevno.
 import { writeFileSync } from 'node:fs';
 
-const URL_SRC  = 'https://cijenegoriva.hr/kompanije/shell';
-const PRODUCT  = 'Shell V-Power EuroDiesel';
+const URL_SRC  = 'https://www.hak.hr/info/cijene-goriva';
+const PRODUCT  = 'EURODIZEL AD B7';   // Petrol standardni dizel
 const VAT      = 1.25;   // PDV 25%
 const DISCOUNT = 0.08;   // komercijalni popust EUR/l
 
@@ -32,7 +32,7 @@ const out = {
   price,
   grossMin,
   date,
-  source: PRODUCT + ' (Min)',
+  source: 'Petrol ' + PRODUCT + ' (Min)',
   updated: new Date().toISOString()
 };
 
