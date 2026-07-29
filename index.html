@@ -408,6 +408,7 @@ select:focus, input[type="text"]:focus { outline: none; border-color: #2e6cb8; b
   </div>
   <div class="warn" id="warnText"></div>
   <div class="note" id="noteText"></div>
+  <div style="margin-top:12px"><button class="print-btn" style="background:#94a3b8" onclick="resetToDefaults()">&#8634; Vrati na zadane vrijednosti</button></div>
 </div>
 
 <!-- ── POVIJEST ── -->
@@ -665,6 +666,16 @@ loadRemoteFuel();
 // ── PWA: registracija service workera (offline rad + instalacija na ekran) ──
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+
+// ── Vrati sve parametre na službene zadane vrijednosti ──
+function resetToDefaults() {
+  if (!confirm('Vratiti sve parametre na službene zadane vrijednosti? Time se brišu tvoje lokalne izmjene. (Cijena goriva ostaje automatska.)')) return;
+  try { localStorage.removeItem('nghCalcParams'); localStorage.removeItem('nghCalcParamsDate'); } catch (e) {}
+  document.querySelectorAll('input[type="number"]').forEach(el => { el.value = el.defaultValue; });
+  applyAutoFuel();
+  loadRemoteFuel();
+  calc();
 }
 
 // ════════════════════════════════════════════════
