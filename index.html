@@ -662,19 +662,43 @@ async function loadRemoteFuel() {
   } catch (e) { /* offline ili nema datoteke — koristi ugrađenu cijenu */ }
 }
 loadRemoteFuel();
+loadOfficialParams();
 
 // ── PWA: registracija service workera (offline rad + instalacija na ekran) ──
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
 
+// ── Središnji "službeni" parametri (data/params.json) ──
+// Kad se promijeni "version" u params.json, svi korisnici automatski dobiju nove vrijednosti.
+async function loadOfficialParams() {
+  try {
+    const res = await fetch('./data/params.json?ts=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d || !d.values) return;
+    const storedVer = localStorage.getItem('nghParamsVersion');
+    if (d.version && d.version === storedVer) return;   // ova verzija je već primijenjena
+    Object.entries(d.values).forEach(([id, val]) => { if ($(id)) $(id).value = val; });
+    try { localStorage.setItem('nghParamsVersion', d.version || ''); } catch (e) {}
+    saveParams();
+    applyAutoFuel();   // cijena goriva ostaje automatska
+    calc();
+  } catch (e) { /* offline ili nema datoteke — koriste se zadane iz aplikacije */ }
+}
+
 // ── Vrati sve parametre na službene zadane vrijednosti ──
 function resetToDefaults() {
   if (!confirm('Vratiti sve parametre na službene zadane vrijednosti? Time se brišu tvoje lokalne izmjene. (Cijena goriva ostaje automatska.)')) return;
-  try { localStorage.removeItem('nghCalcParams'); localStorage.removeItem('nghCalcParamsDate'); } catch (e) {}
+  try {
+    localStorage.removeItem('nghCalcParams');
+    localStorage.removeItem('nghCalcParamsDate');
+    localStorage.removeItem('nghParamsVersion');
+  } catch (e) {}
   document.querySelectorAll('input[type="number"]').forEach(el => { el.value = el.defaultValue; });
   applyAutoFuel();
   loadRemoteFuel();
+  loadOfficialParams();
   calc();
 }
 

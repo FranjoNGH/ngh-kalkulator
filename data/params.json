@@ -1,0 +1,25 @@
+{
+  "version": "2026-07-29",
+  "values": {
+    "fuelConsEmpty": 35,
+    "fuelConsLoaded": 45,
+    "tireCost": 300,
+    "tireCount": 18,
+    "tireLife": 60000,
+    "vehicleValue": 60000,
+    "deprYears": 5,
+    "annualKm": 150000,
+    "driverRate": 11,
+    "avgSpeed": 50,
+    "manipUtovar": 20,
+    "manipIstovar": 20,
+    "payload": 28,
+    "insurance": 5300,
+    "maintenance": 10500,
+    "truckHeight": 4.0,
+    "truckWeight": 40,
+    "truckLength": 16.5,
+    "truckAxle": 11.5,
+    "marginPct": 15
+  }
+}
